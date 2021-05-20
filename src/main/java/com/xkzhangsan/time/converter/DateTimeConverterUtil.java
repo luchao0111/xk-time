@@ -1,5 +1,7 @@
 package com.xkzhangsan.time.converter;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -11,10 +13,19 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.Date;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+import com.xkzhangsan.time.calculator.DateTimeCalculatorUtil;
 
 /**
- * 日期转换<br>
- * 包含Date、LocalDate、LocalDateTime、LocalTime、Instant、ZonedDateTime、YearMonth、Timestamp和long等互相转换<br>
+ * 日期转换工具类<br>
+ * 包含：<br>
+ * 
+ * 1.Date、LocalDate、LocalDateTime、LocalTime、Instant、ZonedDateTime、YearMonth、Timestamp和long等互相转换<br>
+ * 
+ * 2.天、小时、分钟、秒和毫秒等时间单位相互转换，支持小单位到大单位的精确转换比如，minuteToHourPrecise(long num) 90分钟转换为小时，为1.5小时。<br>
+ * 
+ * 3.转换ZonedDateTime的同时支持转换为指定时区，比如toZonedDateTime(Date date, String zoneId) ,toZonedDateTimeAndTransformZone(LocalDateTime localDateTime, String targetZoneId)。<br>
  * 
  * 注意，ZonedDateTime相关的转换，尤其是其他时间转ZonedDateTime，要注意时间和对应时区一致。<br>
 * @author xkzhangsan
@@ -490,8 +501,8 @@ public class DateTimeConverterUtil {
 	}
 	
 	/**
-	 * Date转ZonedDateTime
-	 * @param date Date
+	 * Date转ZonedDateTime，可以直接转换为对应的时区
+	 * @param date Date 没有时区区分
 	 * @param zoneId 目标时区
 	 * @return ZonedDateTime
 	 */
@@ -523,17 +534,31 @@ public class DateTimeConverterUtil {
 	}
 	
 	/**
-	 * LocalDateTime转ZonedDateTime，时区为zoneId对应时区
-	 * 注意，需要保证localDateTime和zoneId是对应的，不然会出现错误
-	 * 
+	 * LocalDateTime转ZonedDateTime，时区为zoneId对应时区<br>
+	 * 注意，需要保证localDateTime和zoneId是对应的，不然会出现错误<br>
+	 * 比如，localDateTime是巴黎时区下的对象，zoneId也应该是巴黎时区id<br>
 	 * @param localDateTime LocalDateTime
-	 * @param zoneId LocalDateTime
+	 * @param zoneId 时区id
 	 * @return ZonedDateTime
 	 */
 	public static ZonedDateTime toZonedDateTime(LocalDateTime localDateTime, String zoneId) {
 		Objects.requireNonNull(localDateTime, "localDateTime");
 		Objects.requireNonNull(zoneId, "zoneId");
 		return localDateTime.atZone(ZoneId.of(zoneId));
+	}
+	
+	/**
+	 * LocalDateTime转ZonedDateTime，当前时区的LocalDateTime转换为目标时区的ZonedDateTime<br>
+	 * 注意，需要保证localDateTime当前时区下的对象<br>
+	 * 
+	 * @param localDateTime LocalDateTime 系统默认时区的localDateTime对象
+	 * @param targetZoneId 目标时区id
+	 * @return ZonedDateTime
+	 */
+	public static ZonedDateTime toZonedDateTimeAndTransformZone(LocalDateTime localDateTime, String targetZoneId) {
+		Objects.requireNonNull(localDateTime, "localDateTime");
+		Objects.requireNonNull(targetZoneId, "targetZoneId");
+		return DateTimeCalculatorUtil.transform(localDateTime.atZone(ZoneId.systemDefault()), targetZoneId);
 	}	
 
 	/**
@@ -674,4 +699,324 @@ public class DateTimeConverterUtil {
 	public static Timestamp toTimestamp(long epochMilli){
 		return new Timestamp(epochMilli);
 	}
+	
+	/**
+	 * 单位转换
+	 * 
+	 * @param sourceDuration
+	 *            数量
+	 * @param sourceUnit
+	 *            原单位
+	 * @param targetUnit
+	 *            新单位
+	 * @return 返回结果
+	 */
+	public static long unitConversion(long sourceDuration, TimeUnit sourceUnit, TimeUnit targetUnit) {
+		return targetUnit.convert(sourceDuration, sourceUnit);
+	}
+
+	/**
+	 * 单位转换，精确计算
+	 * @param sourceDuration 数量
+	 * @param sourceUnit 原单位
+	 * @param targetUnit 新单位
+	 * @param scale 小数位数
+	 * @param roundingMode 舍入模式
+	 * @return 返回结果
+	 */
+	public static BigDecimal unitConversionPrecise(long sourceDuration, TimeUnit sourceUnit, TimeUnit targetUnit, int scale, RoundingMode roundingMode) {
+		return BigDecimal.valueOf(sourceDuration)
+				.multiply(BigDecimal.valueOf(sourceUnit.toNanos(1))).divide(BigDecimal.valueOf(targetUnit.toNanos(1)), scale, roundingMode);
+	}
+	
+	/**
+	 * 单位转换，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param sourceDuration 数量
+	 * @param sourceUnit 原单位
+	 * @param targetUnit 新单位
+	 * @return 返回结果，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */
+	public static BigDecimal unitConversionPrecise(long sourceDuration, TimeUnit sourceUnit, TimeUnit targetUnit) {
+		return unitConversionPrecise(sourceDuration, sourceUnit, targetUnit, 1, RoundingMode.DOWN);
+	}
+	
+	/**
+	 * 单位转换，天转小时
+	 * @param num
+	 * @return 小时数
+	 */
+	public static long dayToHour(long num){
+		return unitConversion(num, TimeUnit.DAYS, TimeUnit.HOURS);
+	}
+	
+	/**
+	 * 单位转换，天转分钟
+	 * @param num
+	 * @return 分钟数
+	 */
+	public static long dayToMinute(long num){
+		return unitConversion(num, TimeUnit.DAYS, TimeUnit.MINUTES);
+	}
+	
+	/**
+	 * 单位转换，天转秒
+	 * @param num
+	 * @return 秒数
+	 */
+	public static long dayToSecond(long num){
+		return unitConversion(num, TimeUnit.DAYS, TimeUnit.SECONDS);
+	}
+	
+	/**
+	 * 单位转换，天转毫秒
+	 * @param num
+	 * @return 毫秒数
+	 */
+	public static long dayToMillisecond(long num){
+		return unitConversion(num, TimeUnit.DAYS, TimeUnit.MILLISECONDS);
+	}
+	
+	/**
+	 * 单位转换，小时转分钟
+	 * @param num
+	 * @return 分钟数
+	 */
+	public static long hourToMinute(long num){
+		return unitConversion(num, TimeUnit.HOURS, TimeUnit.MINUTES);
+	}
+	
+	/**
+	 * 单位转换，小时转秒
+	 * @param num
+	 * @return 秒数
+	 */
+	public static long hourToSecond(long num){
+		return unitConversion(num, TimeUnit.HOURS, TimeUnit.SECONDS);
+	}
+	
+	/**
+	 * 单位转换，小时转毫秒
+	 * @param num
+	 * @return 毫秒数
+	 */
+	public static long hourToMillisecond(long num){
+		return unitConversion(num, TimeUnit.HOURS, TimeUnit.MILLISECONDS);
+	}
+	
+	/**
+	 * 单位转换，小时转天
+	 * @param num
+	 * @return 天数
+	 */
+	public static long hourToDay(long num){
+		return unitConversion(num, TimeUnit.HOURS, TimeUnit.DAYS);
+	}
+	
+	/**
+	 * 小时转天，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 天数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */
+	public static BigDecimal hourToDayPrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.HOURS, TimeUnit.DAYS);
+	}
+	
+	/**
+	 * 单位转换，分钟转秒
+	 * @param num
+	 * @return 秒数
+	 */
+	public static long minuteToSecond(long num){
+		return unitConversion(num, TimeUnit.MINUTES, TimeUnit.SECONDS);
+	}
+	
+	/**
+	 * 单位转换，分钟转毫秒
+	 * @param num
+	 * @return 毫秒数
+	 */
+	public static long minuteToMillisecond(long num){
+		return unitConversion(num, TimeUnit.MINUTES, TimeUnit.MILLISECONDS);
+	}
+	
+	/**
+	 * 单位转换，分钟转小时
+	 * @param num
+	 * @return 小时数
+	 */
+	public static long minuteToHour(long num){
+		return unitConversion(num, TimeUnit.MINUTES, TimeUnit.HOURS);
+	}
+	
+	/**
+	 * 分钟转小时，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 小时数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */
+	public static BigDecimal minuteToHourPrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.MINUTES, TimeUnit.HOURS);
+	}
+	
+	/**
+	 * 单位转换，分钟转天
+	 * @param num
+	 * @return 天数
+	 */
+	public static long minuteToDay(long num){
+		return unitConversion(num, TimeUnit.MINUTES, TimeUnit.DAYS);
+	}
+	
+	/**
+	 * 分钟转天，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 天数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */
+	public static BigDecimal minuteToDayPrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.MINUTES, TimeUnit.DAYS);
+	}
+	
+	/**
+	 * 单位转换，秒转毫秒
+	 * @param num
+	 * @return 毫秒数
+	 */
+	public static long secondToMillisecond(long num){
+		return unitConversion(num, TimeUnit.SECONDS, TimeUnit.MILLISECONDS);
+	}
+	
+	/**
+	 * 单位转换，秒转分钟
+	 * @param num
+	 * @return 分钟数
+	 */
+	public static long secondToMinute(long num){
+		return unitConversion(num, TimeUnit.SECONDS, TimeUnit.MINUTES);
+	}
+	
+	/**
+	 * 秒转分钟，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 分钟数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */
+	public static BigDecimal secondToMinutePrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.SECONDS, TimeUnit.MINUTES);
+	}
+	
+	/**
+	 * 单位转换，秒转小时
+	 * @param num
+	 * @return 小时数
+	 */
+	public static long secondToHour(long num){
+		return unitConversion(num, TimeUnit.SECONDS, TimeUnit.HOURS);
+	}
+	
+	/**
+	 * 秒转小时，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 小时数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */
+	public static BigDecimal secondToHourPrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.SECONDS, TimeUnit.HOURS);
+	}
+	
+	/**
+	 * 单位转换，秒转天
+	 * @param num
+	 * @return 天数
+	 */
+	public static long secondToDay(long num){
+		return unitConversion(num, TimeUnit.SECONDS, TimeUnit.DAYS);
+	}
+	
+	/**
+	 * 秒转天，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 天数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */
+	public static BigDecimal secondToDayPrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.SECONDS, TimeUnit.DAYS);
+	}
+	
+	/**
+	 * 单位转换，毫秒转秒
+	 * @param num
+	 * @return 秒数
+	 */
+	public static long millisecondToSecond(long num){
+		return unitConversion(num, TimeUnit.MILLISECONDS, TimeUnit.SECONDS);
+	}
+	
+	/**
+	 * 毫秒转秒，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 秒数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */	
+	public static BigDecimal millisecondToSecondPrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.MILLISECONDS, TimeUnit.SECONDS);
+	}
+	
+	/**
+	 * 毫秒转秒，精确计算，保留3位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 秒数，保留3位小数，ROUND_DOWN 舍去多余小数
+	 */	
+	public static BigDecimal millisecondToSecondPreciseThree(long num){
+		return unitConversionPrecise(num, TimeUnit.MILLISECONDS, TimeUnit.SECONDS, 3, RoundingMode.DOWN);
+	}	
+	
+	/**
+	 * 单位转换，毫秒转分钟
+	 * @param num
+	 * @return 分钟数
+	 */
+	public static long millisecondToMinute(long num){
+		return unitConversion(num, TimeUnit.MILLISECONDS, TimeUnit.MINUTES);
+	}
+	
+	/**
+	 * 毫秒转分钟，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 分钟数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */	
+	public static BigDecimal millisecondToMinutePrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.MILLISECONDS, TimeUnit.MINUTES);
+	}
+	
+	/**
+	 * 单位转换，毫秒转小时
+	 * @param num
+	 * @return 小时数
+	 */
+	public static long millisecondToHour(long num){
+		return unitConversion(num, TimeUnit.MILLISECONDS, TimeUnit.HOURS);
+	}
+	
+	/**
+	 * 毫秒转小时，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 小时数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */	
+	public static BigDecimal millisecondToHourPrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.MILLISECONDS, TimeUnit.HOURS);
+	}
+	
+	/**
+	 * 单位转换，毫秒转天
+	 * @param num
+	 * @return 天数
+	 */
+	public static long millisecondToDay(long num){
+		return unitConversion(num, TimeUnit.MILLISECONDS, TimeUnit.DAYS);
+	}
+	
+	/**
+	 * 毫秒转天，精确计算，保留1位小数，ROUND_DOWN 舍去多余小数
+	 * @param num
+	 * @return 天数，保留1位小数，ROUND_DOWN 舍去多余小数
+	 */	
+	public static BigDecimal millisecondToDayPrecise(long num){
+		return unitConversionPrecise(num, TimeUnit.MILLISECONDS, TimeUnit.DAYS);
+	}
+	
 }

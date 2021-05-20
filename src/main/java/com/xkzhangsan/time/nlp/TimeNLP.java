@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 import com.xkzhangsan.time.calculator.DateTimeCalculatorUtil;
 import com.xkzhangsan.time.converter.DateTimeConverterUtil;
 import com.xkzhangsan.time.enums.MomentEnum;
+import com.xkzhangsan.time.enums.RegexEnum;
 import com.xkzhangsan.time.formatter.DateTimeFormatterUtil;
 import com.xkzhangsan.time.utils.CollectionUtil;
 
@@ -79,7 +80,7 @@ public class TimeNLP {
      * 该方法作为时间表达式单元的入口，将时间表达式字符串传入
      *
      * @param timeExpression 时间表达式字符串
-     * @param textAnalysis
+     * @param textAnalysis 正则文件分析类
      */
     public TimeNLP(String timeExpression, TextAnalysis textAnalysis) {
         this.timeExpression = timeExpression;
@@ -92,7 +93,7 @@ public class TimeNLP {
      * 该方法作为时间表达式单元的入口，将时间表达式字符串传入
      *
      * @param timeExpression  时间表达式字符串
-     * @param textAnalysis
+     * @param textAnalysis 正则文件分析类
      * @param timePoint 上下文时间
      */
 
@@ -104,21 +105,57 @@ public class TimeNLP {
     }
     
     /**
-     * return the accurate time object
+     * 获取 Date
+     * @return Date
      */
     public Date getTime() {
         return time;
     }
 
     /**
+     * 标准时间解析
+	 * <pre>
+	 *     yyyy-MM-dd HH:mm:ss
+	 *     yyyy-MM-dd HH:mm
+	 *     yyyy-MM-dd
+	 * </pre>
+     * @return LocalDateTime
+     */
+	private LocalDateTime normStandardTime() {
+		LocalDateTime localDateTime = null;
+        Pattern pattern = RegexEnum.NormStandard.getPattern();
+        Matcher match = pattern.matcher(timeExpression);
+        if (match.find()) {
+        	try{
+        		localDateTime = DateTimeFormatterUtil.smartParseToLocalDateTime(timeExpression);
+        		int [] tunit = timeContext.getTunit();
+        		tunit[0]=localDateTime.getYear();
+        		tunit[1]=localDateTime.getMonthValue();
+        		tunit[2]=localDateTime.getDayOfMonth();
+        		if(localDateTime.getHour()>0){
+        			tunit[3]=localDateTime.getHour();
+        		}
+        		if(localDateTime.getMinute()>0){
+        			tunit[4]=localDateTime.getMinute();
+        		}
+        		if(localDateTime.getSecond()>0){
+        			tunit[5]=localDateTime.getSecond();
+        		}
+        	}catch(Exception e){
+        		System.out.println("normStandardTime error:"+e.getMessage());
+        	}
+        }
+		return localDateTime;
+	}
+	
+    /**
      * 年-规范化方法
      * <p>
      * 该方法识别时间表达式单元的年字段
      */
-    public void normYear() {
+    private void normYear() {
         /**假如只有两位数来表示年份*/
-        String rule = "[0-9]{2}(?=年)";
-        Pattern pattern = Pattern.compile(rule);
+        Pattern pattern = RegexEnum.NormYearTwo.getPattern();
         Matcher match = pattern.matcher(timeExpression);
         if (match.find()) {
             timeContext.getTunit()[0] = Integer.parseInt(match.group());
@@ -131,9 +168,7 @@ public class TimeNLP {
 
         }
         /**不仅局限于支持1XXX年和2XXX年的识别，可识别三位数和四位数表示的年份*/
-        rule = "[0-9]?[0-9]{3}(?=年)";
-
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormYearFour.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find())/**如果有3位数和4位数的年份，则覆盖原来2位数识别出的年份*/ {
             timeContext.getTunit()[0] = Integer.parseInt(match.group());
@@ -145,9 +180,8 @@ public class TimeNLP {
      * <p>
      * 该方法识别时间表达式单元的月字段
      */
-    public void normMonth() {
-        String rule = "((10)|(11)|(12)|([1-9]))(?=月)";
-        Pattern pattern = Pattern.compile(rule);
+    private void normMonth() {
+        Pattern pattern = RegexEnum.NormMonth.getPattern();
         Matcher match = pattern.matcher(timeExpression);
         if (match.find()) {
             timeContext.getTunit()[1] = Integer.parseInt(match.group());
@@ -164,9 +198,8 @@ public class TimeNLP {
      * <p>
      * add by kexm
      */
-    public void normMonthFuzzyDay() {
-        String rule = "((10)|(11)|(12)|([1-9]))(月|\\.|\\-)([0-3][0-9]|[1-9])";
-        Pattern pattern = Pattern.compile(rule);
+    private void normMonthFuzzyDay() {
+        Pattern pattern = RegexEnum.NormMonthFuzzyDay.getPattern();
         Matcher match = pattern.matcher(timeExpression);
         if (match.find()) {
             String matchStr = match.group();
@@ -191,9 +224,8 @@ public class TimeNLP {
      * <p>
      * 该方法识别时间表达式单元的日字段
      */
-    public void normDay() {
-        String rule = "((?<!\\d))([0-3][0-9]|[1-9])(?=(日|号))";
-        Pattern pattern = Pattern.compile(rule);
+    private void normDay() {
+        Pattern pattern = RegexEnum.NormDay.getPattern();
         Matcher match = pattern.matcher(timeExpression);
         if (match.find()) {
             timeContext.getTunit()[2] = Integer.parseInt(match.group());
@@ -208,10 +240,8 @@ public class TimeNLP {
      * <p>
      * 该方法识别时间表达式单元的时字段
      */
-    public void normHour() {
-        String rule = "(?<!(周|星期))([0-2]?[0-9])(?=(点|时))";
-
-        Pattern pattern = Pattern.compile(rule);
+    private void normHour() {
+        Pattern pattern = RegexEnum.NormHour.getPattern();
         Matcher match = pattern.matcher(timeExpression);
         if (match.find()) {
             timeContext.getTunit()[3] = Integer.parseInt(match.group());
@@ -229,8 +259,7 @@ public class TimeNLP {
 		 * 
 		 * add by kexm
 		 */
-        rule = "凌晨";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormHourDayBreak.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] == -1) /**增加对没有明确时间点，只写了“凌晨”这种情况的处理 @author kexm*/
@@ -240,8 +269,7 @@ public class TimeNLP {
             isAllDayTime = false;
         }
 
-        rule = "早上|早晨|早间|晨间|今早|明早";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormHourEarlyMorning.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] == -1) /**增加对没有明确时间点，只写了“早上/早晨/早间”这种情况的处理 @author kexm*/
@@ -251,8 +279,7 @@ public class TimeNLP {
             isAllDayTime = false;
         }
 
-        rule = "上午";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormHourMorning.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] == -1) /**增加对没有明确时间点，只写了“上午”这种情况的处理 @author kexm*/
@@ -262,8 +289,7 @@ public class TimeNLP {
             isAllDayTime = false;
         }
 
-        rule = "(中午)|(午间)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormHourNoon.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] >= 0 && timeContext.getTunit()[3] <= 10)
@@ -275,8 +301,7 @@ public class TimeNLP {
             isAllDayTime = false;
         }
 
-        rule = "(下午)|(午后)|(pm)|(PM)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormHourAfternoon.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] >= 0 && timeContext.getTunit()[3] <= 11)
@@ -288,8 +313,7 @@ public class TimeNLP {
             isAllDayTime = false;
         }
 
-        rule = "晚上|夜间|夜里|今晚|明晚";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormHourNight.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] >= 1 && timeContext.getTunit()[3] <= 11)
@@ -311,11 +335,17 @@ public class TimeNLP {
      * <p>
      * 该方法识别时间表达式单元的分字段
      */
-    public void normMinute() {
-        String rule = "([0-5]?[0-9](?=分(?!钟)))|((?<=((?<!小)[点时]))[0-5]?[0-9](?!刻))";
-
-        Pattern pattern = Pattern.compile(rule);
-        Matcher match = pattern.matcher(timeExpression);
+    private void normMinute() {
+    	
+    	//特殊情况排查，比如30分后
+		Pattern pattern = RegexEnum.NormMinuteSpec.getPattern();
+		Matcher match = pattern.matcher(timeExpression);
+		if (match.find()) {
+			return;
+		}
+		
+        pattern = RegexEnum.NormMinute.getPattern();
+        match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (!match.group().equals("")) {
                 timeContext.getTunit()[4] = Integer.parseInt(match.group());
@@ -325,8 +355,7 @@ public class TimeNLP {
             }
         }
         /** 加对一刻，半，3刻的正确识别（1刻为15分，半为30分，3刻为45分）*/
-        rule = "(?<=[点时])[1一]刻(?!钟)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormMinuteOneQuarter.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             timeContext.getTunit()[4] = 15;
@@ -335,8 +364,7 @@ public class TimeNLP {
             isAllDayTime = false;
         }
 
-        rule = "(?<=[点时])半";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormMinuteHalf.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             timeContext.getTunit()[4] = 30;
@@ -345,8 +373,7 @@ public class TimeNLP {
             isAllDayTime = false;
         }
 
-        rule = "(?<=[点时])[3三]刻(?!钟)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormMinuteThreeQuarter.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             timeContext.getTunit()[4] = 45;
@@ -361,16 +388,20 @@ public class TimeNLP {
      * <p>
      * 该方法识别时间表达式单元的秒字段
      */
-    public void normSecond() {
+    private void normSecond() {
+    	//特殊情况排查，比如30秒后
+		Pattern pattern = RegexEnum.NormSecondSpec.getPattern();
+		Matcher match = pattern.matcher(timeExpression);
+		if (match.find()) {
+			return;
+		}
 		/*
 		 * 添加了省略“分”说法的时间
 		 * 如17点15分32
 		 * modified by 曹零
 		 */
-        String rule = "([0-5]?[0-9](?=秒))|((?<=分)[0-5]?[0-9])";
-
-        Pattern pattern = Pattern.compile(rule);
-        Matcher match = pattern.matcher(timeExpression);
+        pattern = RegexEnum.NormSecond.getPattern();
+        match = pattern.matcher(timeExpression);
         if (match.find()) {
             timeContext.getTunit()[5] = Integer.parseInt(match.group());
             isAllDayTime = false;
@@ -382,15 +413,13 @@ public class TimeNLP {
      * <p>
      * 该方法识别特殊形式的时间表达式单元的各个字段
      */
-    public void normTotal() {
-        String rule;
+    private void normTotal() {
         Pattern pattern;
         Matcher match;
         String[] tmpParser;
         String tmpTarget;
 
-        rule = "(?<!(周|星期))([0-2]?[0-9]):[0-5]?[0-9]:[0-5]?[0-9]";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormTotalTime.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             tmpParser = new String[3];
@@ -403,8 +432,7 @@ public class TimeNLP {
             preferFuture(3);
             isAllDayTime = false;
         } else {
-            rule = "(?<!(周|星期))([0-2]?[0-9]):[0-5]?[0-9]";
-            pattern = Pattern.compile(rule);
+            pattern = RegexEnum.NormTotalTimeShort.getPattern();
             match = pattern.matcher(timeExpression);
             if (match.find()) {
                 tmpParser = new String[2];
@@ -422,8 +450,7 @@ public class TimeNLP {
 		 * 中午,午间,下午,午后,晚上,傍晚,晚间,晚,pm,PM
 		 * 的正确时间计算，规约同上
 		 */
-        rule = "(中午)|(午间)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormHourNoon.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] >= 0 && timeContext.getTunit()[3] <= 10)
@@ -436,8 +463,7 @@ public class TimeNLP {
 
         }
 
-        rule = "(下午)|(午后)|(pm)|(PM)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormHourAfternoon.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] >= 0 && timeContext.getTunit()[3] <= 11)
@@ -449,8 +475,7 @@ public class TimeNLP {
             isAllDayTime = false;
         }
 
-        rule = "晚";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormTotalNight.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             if (timeContext.getTunit()[3] >= 1 && timeContext.getTunit()[3] <= 11)
@@ -465,8 +490,7 @@ public class TimeNLP {
         }
 
 
-        rule = "[0-9]?[0-9]?[0-9]{2}-((10)|(11)|(12)|([1-9]))-((?<!\\d))([0-3][0-9]|[1-9])";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormTotalDateOne.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             tmpParser = new String[3];
@@ -477,8 +501,7 @@ public class TimeNLP {
             timeContext.getTunit()[2] = Integer.parseInt(tmpParser[2]);
         }
 
-        rule = "((10)|(11)|(12)|([1-9]))/((?<!\\d))([0-3][0-9]|[1-9])/[0-9]?[0-9]?[0-9]{2}";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormTotalDateTwo.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             tmpParser = new String[3];
@@ -493,8 +516,7 @@ public class TimeNLP {
 		 * 增加了:固定形式时间表达式 年.月.日 的正确识别
 		 * add by 曹零
 		 */
-        rule = "[0-9]?[0-9]?[0-9]{2}\\.((10)|(11)|(12)|([1-9]))\\.((?<!\\d))([0-3][0-9]|[1-9])";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormTotalDateThree.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             tmpParser = new String[3];
@@ -507,9 +529,9 @@ public class TimeNLP {
     }
 
     /**
-     * 设置以上文时间为基准的时间偏移计算
+     * 设置以上文时间为基准的时间偏移计算，日期部分
      */
-    public void normBaseRelated() {
+    private void normBaseRelated() {
         String[] timeGrid = new String[6];
         timeGrid = timeContextOrigin.getTimeBase().split("-");
         int[] ini = new int[6];
@@ -518,78 +540,188 @@ public class TimeNLP {
         //设置结果
         LocalDateTime localDateTime = LocalDateTime.of(ini[0], ini[1], ini[2], ini[3], ini[4], ini[5]);
 
-        boolean[] flag = {false, false, false};//观察时间表达式是否因当前相关时间表达式而改变时间
+        boolean flag = false;//观察时间表达式是否因当前相关时间表达式而改变时间
 
 
-        String rule = "\\d+(?=天[以之]?前)";
-        Pattern pattern = Pattern.compile(rule);
+        Pattern pattern = RegexEnum.NormBaseRelatedDayBefore.getPattern();
         Matcher match = pattern.matcher(timeExpression);
         if (match.find()) {
-            flag[2] = true;
+        	flag = true;
             int day = Integer.parseInt(match.group());
             localDateTime = localDateTime.minusDays(day);
         }
 
-        rule = "\\d+(?=天[以之]?后)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormBaseRelatedDayAfter.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
-            flag[2] = true;
+        	flag = true;
             int day = Integer.parseInt(match.group());
             localDateTime = localDateTime.plusDays(day);
         }
 
-        rule = "\\d+(?=(个)?月[以之]?前)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormBaseRelatedMonthBefore.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
-            flag[1] = true;
+        	flag = true;
             int month = Integer.parseInt(match.group());
             localDateTime = localDateTime.minusMonths(month);
         }
 
-        rule = "\\d+(?=(个)?月[以之]?后)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormBaseRelatedMonthAfter.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
-            flag[1] = true;
+        	flag = true;
             int month = Integer.parseInt(match.group());
             localDateTime = localDateTime.plusMonths(month);
         }
 
-        rule = "\\d+(?=年[以之]?前)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormBaseRelatedYearBefore.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
-            flag[0] = true;
+        	flag = true;
             int year = Integer.parseInt(match.group());
             localDateTime = localDateTime.minusYears(year);
         }
 
-        rule = "\\d+(?=年[以之]?后)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormBaseRelatedYearAfter.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
-            flag[0] = true;
+        	flag = true;
             int year = Integer.parseInt(match.group());
             localDateTime = localDateTime.plusYears(year);
         }
 
-        String s = DateTimeFormatterUtil.format(localDateTime, "yyyy-MM-dd-HH-mm-ss");
-        String[] time_fin = s.split("-");
-        if (flag[0] || flag[1] || flag[2]) {
-            timeContext.getTunit()[0] = Integer.parseInt(time_fin[0]);
+        if(flag){
+        	setUnitValues(localDateTime);
         }
-        if (flag[1] || flag[2])
-            timeContext.getTunit()[1] = Integer.parseInt(time_fin[1]);
-        if (flag[2])
-            timeContext.getTunit()[2] = Integer.parseInt(time_fin[2]);
+    }
+    
+    /**
+     * 设置以上文时间为基准的时间偏移计算，时间部分
+     */
+    private void normBaseTimeRelated() {
+        String[] timeGrid = new String[6];
+        timeGrid = timeContextOrigin.getTimeBase().split("-");
+        int[] ini = new int[6];
+        for (int i = 0; i < 6; i++)
+            ini[i] = Integer.parseInt(timeGrid[i]);
+        //设置结果
+        LocalDateTime localDateTime = LocalDateTime.of(ini[0], ini[1], ini[2], ini[3], ini[4], ini[5]);
+
+        boolean flag = false;//观察时间表达式是否因当前相关时间表达式而改变时间
+
+        Pattern pattern = RegexEnum.NormBaseTimeRelatedHourBefore.getPattern();
+        Matcher match = pattern.matcher(timeExpression);
+        if (match.find()) {
+            flag = true;
+            int hour = Integer.parseInt(match.group());
+            localDateTime = localDateTime.minusHours(hour);
+        }
+
+        pattern = RegexEnum.NormBaseTimeRelatedHourAfter.getPattern();
+        match = pattern.matcher(timeExpression);
+        if (match.find()) {
+            flag = true;
+            int hour = Integer.parseInt(match.group());
+            localDateTime = localDateTime.plusHours(hour);
+        }
+
+        pattern = RegexEnum.NormBaseTimeRelatedHalfHourBefore.getPattern();
+        match = pattern.matcher(timeExpression);
+        if (match.find()) {
+            flag = true;
+            localDateTime = localDateTime.minusMinutes(30);
+        }
+
+        pattern = RegexEnum.NormBaseTimeRelatedHalfHourAfter.getPattern();
+        match = pattern.matcher(timeExpression);
+        if (match.find()) {
+            flag = true;
+            localDateTime = localDateTime.plusMinutes(30);
+        }
+        
+        pattern = RegexEnum.NormBaseTimeRelatedMinuteBefore.getPattern();
+        Matcher matchMinuteBefore = pattern.matcher(timeExpression);
+        if (matchMinuteBefore.find()) {
+            flag = true;
+            int minute = Integer.parseInt(matchMinuteBefore.group());
+            localDateTime = localDateTime.minusMinutes(minute);
+        }
+
+        pattern = RegexEnum.NormBaseTimeRelatedMinuteAfter.getPattern();
+        Matcher matchMinuteAfter = pattern.matcher(timeExpression);
+        if (matchMinuteAfter.find()) {
+            flag = true;
+            int minute = Integer.parseInt(matchMinuteAfter.group());
+            localDateTime = localDateTime.plusMinutes(minute);
+        }
+        
+        //1个小时10分钟前，组合处理
+        if(matchMinuteBefore.find()){
+            pattern = RegexEnum.NormBaseTimeRelatedHour.getPattern();
+            match = pattern.matcher(timeExpression);
+            if (match.find()) {
+                flag = true;
+                int hour = Integer.parseInt(match.group());
+                localDateTime = localDateTime.minusHours(hour);
+            }
+        }
+        
+        if(matchMinuteAfter.find()){
+            pattern = RegexEnum.NormBaseTimeRelatedHour.getPattern();
+            match = pattern.matcher(timeExpression);
+            if (match.find()) {
+                flag = true;
+                int hour = Integer.parseInt(match.group());
+                localDateTime = localDateTime.plusHours(hour);
+            }
+        }
+        
+        pattern = RegexEnum.NormBaseTimeRelatedSecondBefore.getPattern();
+        Matcher matchSecondBefore = pattern.matcher(timeExpression);
+        if (matchSecondBefore.find()) {
+            flag = true;
+            int second = Integer.parseInt(matchSecondBefore.group());
+            localDateTime = localDateTime.minusSeconds(second);
+        }
+
+        pattern = RegexEnum.NormBaseTimeRelatedSecondAfter.getPattern();
+        Matcher matchSecondAfter = pattern.matcher(timeExpression);
+        if (matchSecondAfter.find()) {
+            flag = true;
+            int second = Integer.parseInt(matchSecondAfter.group());
+            localDateTime = localDateTime.plusSeconds(second);
+        }
+        
+        if(matchSecondBefore.find()){
+            pattern = RegexEnum.NormBaseTimeRelatedMinute.getPattern();
+            match = pattern.matcher(timeExpression);
+            if (match.find()) {
+                flag = true;
+                int minute = Integer.parseInt(match.group());
+                localDateTime = localDateTime.minusMinutes(minute);
+            }
+        }
+        
+        if(matchSecondAfter.find()){
+            pattern = RegexEnum.NormBaseTimeRelatedMinute.getPattern();
+            match = pattern.matcher(timeExpression);
+            if (match.find()) {
+                flag = true;
+                int minute = Integer.parseInt(match.group());
+                localDateTime = localDateTime.plusMinutes(minute);
+            }
+        }
+
+        if(flag){
+        	setUnitValues(localDateTime);
+        }
     }
 
     /**
      * 设置当前时间相关的时间表达式
      */
-    public void normCurRelated() {
+    private void normCurRelated() {
         String[] timeGrid = new String[6];
         timeGrid = timeContextOrigin.getOldTimeBase().split("-");
         int[] ini = new int[6];
@@ -601,48 +733,42 @@ public class TimeNLP {
 
         boolean[] flag = {false, false, false};//观察时间表达式是否因当前相关时间表达式而改变时间
 
-        String rule = "前年";
-        Pattern pattern = Pattern.compile(rule);
+        Pattern pattern = RegexEnum.NormCurRelatedYearBeforeLast.getPattern();
         Matcher match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[0] = true;
             localDateTime = localDateTime.minusYears(-2);
         }
 
-        rule = "去年";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedYearBefore.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[0] = true;
             localDateTime = localDateTime.minusYears(-1);
         }
 
-        rule = "今年";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedYear.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[0] = true;
             localDateTime = localDateTime.plusYears(0);
         }
 
-        rule = "明年";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedYearAfter.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[0] = true;
             localDateTime = localDateTime.plusYears(1);
         }
 
-        rule = "后年";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedYearAfterNext.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[0] = true;
             localDateTime = localDateTime.plusYears(2);
         }
 
-        rule = "上(个)?月";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedMonthBefore.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[1] = true;
@@ -650,80 +776,70 @@ public class TimeNLP {
 
         }
 
-        rule = "(本|这个)月";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedMonth.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[1] = true;
             localDateTime = localDateTime.plusMonths(0);
         }
 
-        rule = "下(个)?月";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedMonthAfter.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[1] = true;
             localDateTime = localDateTime.plusMonths(1);
         }
 
-        rule = "大前天";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedDayBeforeThree.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
             localDateTime = localDateTime.minusDays(-3);
         }
 
-        rule = "(?<!大)前天";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedDayBeforeLast.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
             localDateTime = localDateTime.minusDays(-2);
         }
 
-        rule = "昨";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedDayYesterday.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
             localDateTime = localDateTime.minusDays(-1);
         }
 
-        rule = "今(?!年)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedDayToday.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
             localDateTime = localDateTime.plusDays(0);
         }
 
-        rule = "明(?!年)";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedDayTomorrow.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
             localDateTime = localDateTime.plusDays(1);
         }
 
-        rule = "(?<!大)后天";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedDayAfterNext.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
             localDateTime = localDateTime.plusDays(2);
         }
 
-        rule = "大后天";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedDayAfterThree.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
             localDateTime = localDateTime.plusDays(3);
         }
 
-        rule = "(?<=(上上(周|星期)))[1-7]?";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedWeekBeforeLast.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
@@ -737,8 +853,7 @@ public class TimeNLP {
             localDateTime = DateTimeCalculatorUtil.withDayOfWeek(localDateTime, week);
         }
 
-        rule = "(?<=((?<!上)上(周|星期)))[1-7]?";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedWeekBefore.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
@@ -752,8 +867,7 @@ public class TimeNLP {
             localDateTime = DateTimeCalculatorUtil.withDayOfWeek(localDateTime, week);
         }
 
-        rule = "(?<=((?<!下)下(周|星期)))[1-7]?";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedWeekAfter.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
@@ -767,8 +881,7 @@ public class TimeNLP {
             localDateTime = DateTimeCalculatorUtil.withDayOfWeek(localDateTime, week);
         }
 
-        rule = "(?<=(下下(周|星期)))[1-7]?";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedWeekAfterNext.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
@@ -782,8 +895,7 @@ public class TimeNLP {
             localDateTime = DateTimeCalculatorUtil.withDayOfWeek(localDateTime, week);
         }
 
-        rule = "(?<=((?<!(上|下))(周|星期)))[1-7]?";
-        pattern = Pattern.compile(rule);
+        pattern = RegexEnum.NormCurRelatedWeek.getPattern();
         match = pattern.matcher(timeExpression);
         if (match.find()) {
             flag[2] = true;
@@ -800,14 +912,14 @@ public class TimeNLP {
         }
 
         String s = DateTimeFormatterUtil.format(localDateTime, "yyyy-MM-dd-HH-mm-ss");
-        String[] time_fin = s.split("-");
+        String[] timeFin = s.split("-");
         if (flag[0] || flag[1] || flag[2]) {
-            timeContext.getTunit()[0] = Integer.parseInt(time_fin[0]);
+            timeContext.getTunit()[0] = Integer.parseInt(timeFin[0]);
         }
         if (flag[1] || flag[2])
-            timeContext.getTunit()[1] = Integer.parseInt(time_fin[1]);
+            timeContext.getTunit()[1] = Integer.parseInt(timeFin[1]);
         if (flag[2])
-            timeContext.getTunit()[2] = Integer.parseInt(time_fin[2]);
+            timeContext.getTunit()[2] = Integer.parseInt(timeFin[2]);
 
     }
 
@@ -815,8 +927,9 @@ public class TimeNLP {
      * 如果用户选项是倾向于未来时间，检查所指的day_of_week是否是过去的时间，如果是的话，设为下周。
      * <p>
      * 如在周五说：周一开会，识别为下周一开会
-     *
      * @param weekday 识别出是周几（范围1-7）
+     * @param localDateTime
+     * @return
      */
     private LocalDateTime preferFutureWeek(int weekday, LocalDateTime localDateTime) {
         /**1. 确认用户选项*/
@@ -846,7 +959,7 @@ public class TimeNLP {
 	/**
      * 该方法用于更新timeBase使之具有上下文关联性
      */
-    public void modifyTimeBase() {
+    private void modifyTimeBase() {
         String[] timeGrid = new String[6];
         timeGrid = timeContextOrigin.getTimeBase().split("-");
 
@@ -871,75 +984,76 @@ public class TimeNLP {
      * 时间表达式识别后，通过此入口进入规范化阶段，
      * 具体识别每个字段的值
      */
-    public void timeNormalization() {
-        normYear();
-        normMonth();
-        normDay();
-        normMonthFuzzyDay();/**add by kexm*/
-        normBaseRelated();
-        normCurRelated();
-        normHour();
-        normMinute();
-        normSecond();
-        normTotal();
-        modifyTimeBase();
-
-        timeContextOrigin.setTunit(timeContext.getTunit().clone());
-        timeContext.setTimeBase(timeContextOrigin.getTimeBase());
-        timeContext.setOldTimeBase(timeContextOrigin.getOldTimeBase());
-
-        String[] timeGrid = new String[6];
-        timeGrid = timeContextOrigin.getTimeBase().split("-");
-
-        int tunitpointer = 5;
-        while (tunitpointer >= 0 && timeContext.getTunit()[tunitpointer] < 0) {
-            tunitpointer--;
-        }
-        for (int i = 0; i < tunitpointer; i++) {
-            if (timeContext.getTunit()[i] < 0)
-                timeContext.getTunit()[i] = Integer.parseInt(timeGrid[i]);
-        }
-        String[] resultTmp = new String[6];
-        resultTmp[0] = String.valueOf(timeContext.getTunit()[0]);
-        if (timeContext.getTunit()[0] >= 10 && timeContext.getTunit()[0] < 100) {
-            resultTmp[0] = "19" + String.valueOf(timeContext.getTunit()[0]);
-        }
-        if (timeContext.getTunit()[0] > 0 && timeContext.getTunit()[0] < 10) {
-            resultTmp[0] = "200" + String.valueOf(timeContext.getTunit()[0]);
-        }
-
-        for (int i = 1; i < 6; i++) {
-            resultTmp[i] = String.valueOf(timeContext.getTunit()[i]);
-        }
-
-        LocalDateTime localDateTime = LocalDateTime.of(1970, 1, 1, 0, 0);
-        if (Integer.parseInt(resultTmp[0]) != -1) {
-            timeNorm += resultTmp[0] + "年";
-            localDateTime = localDateTime.withYear(Integer.valueOf(resultTmp[0]));
-            if (Integer.parseInt(resultTmp[1]) != -1) {
-                timeNorm += resultTmp[1] + "月";
-                localDateTime = localDateTime.withMonth(Integer.valueOf(resultTmp[1]));
-                if (Integer.parseInt(resultTmp[2]) != -1) {
-                    timeNorm += resultTmp[2] + "日";
-                    localDateTime = localDateTime.withDayOfMonth(Integer.valueOf(resultTmp[2]));
-                    if (Integer.parseInt(resultTmp[3]) != -1) {
-                        timeNorm += resultTmp[3] + "时";
-                        localDateTime = localDateTime.withHour(Integer.valueOf(resultTmp[3]));
-                        if (Integer.parseInt(resultTmp[4]) != -1) {
-                            timeNorm += resultTmp[4] + "分";
-                            localDateTime = localDateTime.withMinute(Integer.valueOf(resultTmp[4]));
-                            if (Integer.parseInt(resultTmp[5]) != -1) {
-                                timeNorm += resultTmp[5] + "秒";
-                                localDateTime = localDateTime.withSecond(Integer.valueOf(resultTmp[5]));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        time = DateTimeConverterUtil.toDate(localDateTime);
-
-        timeNormFormat = DateTimeFormatterUtil.format(localDateTime, DateTimeFormatterUtil.YYYY_MM_DD_HH_MM_SS_FMT);
+    private void timeNormalization() {
+	    //标准时间解析
+		LocalDateTime localDateTime = normStandardTime();
+	    if(localDateTime == null){
+	    	normYear();
+	        normMonth();
+	        normDay();
+	        normMonthFuzzyDay();/**add by kexm*/
+	        normBaseRelated();
+	        normBaseTimeRelated();
+	        normCurRelated();
+	        normHour();
+	        normMinute();
+	        normSecond();
+	        normTotal();
+	        modifyTimeBase();
+	        localDateTime = LocalDateTime.of(1970, 1, 1, 0, 0);
+	    }
+	    String[] timeGrid = new String[6];
+	    timeGrid = timeContextOrigin.getTimeBase().split("-");
+	
+	    int tunitpointer = 5;
+	    while (tunitpointer >= 0 && timeContext.getTunit()[tunitpointer] < 0) {
+	        tunitpointer--;
+	    }
+	    for (int i = 0; i < tunitpointer; i++) {
+	        if (timeContext.getTunit()[i] < 0)
+	            timeContext.getTunit()[i] = Integer.parseInt(timeGrid[i]);
+	    }
+	    String[] resultTmp = new String[6];
+	    resultTmp[0] = String.valueOf(timeContext.getTunit()[0]);
+	    if (timeContext.getTunit()[0] >= 10 && timeContext.getTunit()[0] < 100) {
+	        resultTmp[0] = "19" + String.valueOf(timeContext.getTunit()[0]);
+	    }
+	    if (timeContext.getTunit()[0] > 0 && timeContext.getTunit()[0] < 10) {
+	        resultTmp[0] = "200" + String.valueOf(timeContext.getTunit()[0]);
+	    }
+	
+	    for (int i = 1; i < 6; i++) {
+	        resultTmp[i] = String.valueOf(timeContext.getTunit()[i]);
+	    }
+	    if (Integer.parseInt(resultTmp[0]) != -1) {
+	        timeNorm += resultTmp[0] + "年";
+	        localDateTime = localDateTime.withYear(Integer.valueOf(resultTmp[0]));
+	        if (Integer.parseInt(resultTmp[1]) != -1) {
+	            timeNorm += resultTmp[1] + "月";
+	            localDateTime = localDateTime.withMonth(Integer.valueOf(resultTmp[1]));
+	            if (Integer.parseInt(resultTmp[2]) != -1) {
+	                timeNorm += resultTmp[2] + "日";
+	                localDateTime = localDateTime.withDayOfMonth(Integer.valueOf(resultTmp[2]));
+	                if (Integer.parseInt(resultTmp[3]) != -1) {
+	                    timeNorm += resultTmp[3] + "时";
+	                    localDateTime = localDateTime.withHour(Integer.valueOf(resultTmp[3]));
+	                    if (Integer.parseInt(resultTmp[4]) != -1) {
+	                        timeNorm += resultTmp[4] + "分";
+	                        localDateTime = localDateTime.withMinute(Integer.valueOf(resultTmp[4]));
+	                        if (Integer.parseInt(resultTmp[5]) != -1) {
+	                            timeNorm += resultTmp[5] + "秒";
+	                            localDateTime = localDateTime.withSecond(Integer.valueOf(resultTmp[5]));
+	                        }
+	                    }
+	                }
+	            }
+	        }
+	    }
+		timeContextOrigin.setTunit(timeContext.getTunit().clone());
+		timeContext.setTimeBase(timeContextOrigin.getTimeBase());
+		timeContext.setOldTimeBase(timeContextOrigin.getOldTimeBase());
+		time = DateTimeConverterUtil.toDate(localDateTime);
+		timeNormFormat = DateTimeFormatterUtil.format(localDateTime, DateTimeFormatterUtil.YYYY_MM_DD_HH_MM_SS_FMT);
     }
 
     public Boolean getIsAllDayTime() {
@@ -950,6 +1064,8 @@ public class TimeNLP {
         this.isAllDayTime = isAllDayTime;
     }
 
+
+    @Override
     public String toString() {
     	return timeExpression + " ---> " + timeNormFormat;
     }
@@ -984,10 +1100,21 @@ public class TimeNLP {
             localDateTime = LocalDateTime.of(Integer.valueOf(ini[0]).intValue(), Integer.valueOf(ini[1]).intValue(), Integer.valueOf(ini[2]).intValue()
                     , Integer.valueOf(ini[3]).intValue(), Integer.valueOf(ini[4]).intValue(), Integer.valueOf(ini[5]).intValue());
         }
-
+        
         int curTime = localDateTime.get((TemporalField) TUNIT_MAP.get(checkTimeIndex));
-        if (curTime < timeContext.getTunit()[checkTimeIndex]) {
-            return;
+        //下午时间特殊处理，修复当前时间是上午10点，那么下午三点 会识别为明天下午三点问题
+        if(checkTimeIndex == 3 && timeContext.getTunit()[3] >= 0 && timeContext.getTunit()[3] <= 11){
+            Pattern pattern = RegexEnum.NormHourAfternoon.getPattern();
+            Matcher match = pattern.matcher(timeExpression);
+            if (match.find()) {
+            	if (curTime < (timeContext.getTunit()[3] + 12)) {
+            		return;
+            	}
+            }
+        }else{
+        	if (curTime < timeContext.getTunit()[checkTimeIndex]) {
+        		return;
+        	}
         }
         //准备增加的时间单位是被检查的时间的上一级，将上一级时间+1
         localDateTime = localDateTime.plus(1, (TemporalUnit) TUNIT_MAP.get(checkTimeIndex - 1 + 10));
@@ -999,6 +1126,7 @@ public class TimeNLP {
 
     /**
      * 根据上下文时间补充时间信息
+     * @param checkTimeIndex 序号
      */
     private void checkContextTime(int checkTimeIndex) {
         for (int i = 0; i < checkTimeIndex; i++) {
@@ -1016,8 +1144,8 @@ public class TimeNLP {
     /**
      * 过滤timeNLPList中无用的识别词。无用识别词识别出的时间是1970.01.01 00:00:00(fastTime=-28800000)
      *
-     * @param timeNLPList
-     * @return
+     * @param timeNLPList 待处理列表
+     * @return 返回结果
      */
     public static List<TimeNLP> filterTimeUnit(List<TimeNLP> timeNLPList) {
         if (CollectionUtil.isEmpty(timeNLPList)) {
@@ -1031,9 +1159,24 @@ public class TimeNLP {
         }
         return list;
     }
+    
+    /**
+     * 根据修改时间设置unit值
+     * @param localDateTime 时间
+     */
+    private void setUnitValues(LocalDateTime localDateTime){
+        String s = DateTimeFormatterUtil.format(localDateTime, "yyyy-MM-dd-HH-mm-ss");
+        String[] timeFin = s.split("-");
+        timeContext.getTunit()[0] = Integer.parseInt(timeFin[0]);
+        timeContext.getTunit()[1] = Integer.parseInt(timeFin[1]);
+        timeContext.getTunit()[2] = Integer.parseInt(timeFin[2]);
+        timeContext.getTunit()[3] = Integer.parseInt(timeFin[3]);
+        timeContext.getTunit()[4] = Integer.parseInt(timeFin[4]);
+        timeContext.getTunit()[5] = Integer.parseInt(timeFin[5]);
+    }
 
     // get set
-    
+
 	public String getTimeExpression() {
 		return timeExpression;
 	}

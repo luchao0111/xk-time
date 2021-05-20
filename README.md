@@ -20,10 +20,10 @@
 <br>
   
   
-### xk-time 是时间转换，计算，格式化，解析，日历，cron表达式和NLP等的工具，使用Java8，线程安全，简单易用，多达70几种常用日期格式化模板，支持Java8时间类和Date，轻量级，无第三方依赖。  
+### xk-time 是时间转换，时间计算，时间格式化，时间解析，日历，时间cron表达式和时间NLP等的工具，使用Java8，线程安全，简单易用，多达70几种常用日期格式化模板，支持Java8时间类和Date，轻量级，无第三方依赖。    
   
   
-xk-time is a tool for time conversion, calculation, formatting, parsing, calendar, cron expression and NLP, etc., using Java8, thread-safe, easy to use, up to 70 commonly used date formatting templates, support Java8 time class and Date , Lightweight, no third party dependence.
+xk-time is a tool for time conversion, time calculation, time formatting, time parsing, calendar, time cron expression and time NLP, etc. It uses Java8, thread-safe, easy to use, and more than 70 common date formatting templates , Support Java8 time class and Date, lightweight, no third-party dependencies.  
   
   
 # 安装项目  
@@ -32,12 +32,19 @@ xk-time is a tool for time conversion, calculation, formatting, parsing, calenda
     <dependency>  
       <groupId>com.github.xkzhangsan</groupId>    
       <artifactId>xk-time</artifactId>       
-      <version>2.2.0</version>    
+      <version>3.1.0</version>    
     </dependency>    
       
+      Mini版本不包含 time nlp 功能，更简洁。  
+    <dependency>  
+      <groupId>com.github.xkzhangsan</groupId>    
+      <artifactId>xk-time</artifactId>       
+      <version>3.1.0.Mini</version>    
+    </dependency>    
+            
         
 ### （2）Gradle        
-    compile group: 'com.github.xkzhangsan', name: 'xk-time', version: '2.2.0'  
+    compile group: 'com.github.xkzhangsan', name: 'xk-time', version: '3.1.0'  
       
 ### 注意：Android谨慎使用，Android端因为需要兼容低版本而不支持Java8，建议继续使用其他工具，如果有需要本项目相关的功能，可以参考源码实现，或留言给我。感谢支持！  
     
@@ -59,9 +66,15 @@ xk-time工具包，将上面功能按照时间转换，时间计算，时间格�
 
 # 主要功能说明
 ### 1.日期转换工具类   DateTimeConverterUtil 
-包含Date、LocalDate、LocalDateTime、LocalTime、Instant、ZonedDateTime、YearMonth、Timestamp和long等互相转换    
+包含：  
+（1）Date、LocalDate、LocalDateTime、LocalTime、Instant、ZonedDateTime、YearMonth、Timestamp和long等互相转换。    
+  
+（2）天、小时、分钟、秒和毫秒等时间单位相互转换，支持小单位到大单位的精确转换比如，minuteToHourPrecise(long num) 90分钟转换为小时，为1.5小时。    
+  
+（3）转换ZonedDateTime的同时支持转换为指定时区，比如toZonedDateTime(Date date, String zoneId)     ,toZonedDateTimeAndTransformZone(LocalDateTime localDateTime, String targetZoneId)。     
+   
  注意，ZonedDateTime相关的转换，尤其是其他时间转ZonedDateTime，要注意时间和对应时区一致。  
-
+  
 详细使用可以查看相关测试代码。  
 
 ### 2.日期计算工具类  DateTimeCalculatorUtil 
@@ -109,12 +122,16 @@ xk-time工具包，将上面功能按照时间转换，时间计算，时间格�
 （21）获取季度准确的起始时间方法（四个季度），startTimeOf*Quarter， 比如startTimeOfFirstQuarter(int year)，获取指定年的第一季度。   
   
 （22） 获取年准确的起始时间方法，startTimeOfYear， 比如startTimeOfYear(int year)，获取指定年的开始时间。    
-
-（23）常用时间（明天，下周，下月，明年等）计算方法，比如tomorrow()，计算明天，返回Date。  
-
-（24）修改星期值方法 withDayOfWeek*，比如withDayOfWeek(Date date, long newValue)，修改星期为指定值newValue，返回Date。  
-    
   
+（23）常用时间（明天，下周，下月，明年等）计算方法，比如tomorrow()，计算明天，返回Date。  
+  
+（24）修改星期值方法 withDayOfWeek*，比如withDayOfWeek(Date date, long newValue)，修改星期为指定值newValue，返回Date。  
+  
+（25）中国工作日计算（将放假信息包含在内），包括判断当前日期是否为工作日和下一个工作日等方法， isChineseWorkDay*，nextChineseWorkDay*，  
+比如  isChineseWorkDay(Date, String holidayData)，nextChineseWorkDay(Date date, String holidayData)，  
+节假日数据holidayData，如果节假日数据不支持年份，将使用周一到周五为工作日来判断。  
+  
+    
 详细使用可以查看相关测试代码。  
 
 ### 3.日期格式化和解析工具类  DateTimeFormatterUtil 
@@ -179,11 +196,12 @@ parseToDate(String text, DateTimeFormatter formatter) 根据 formatter解析为 
 （1）农历日期年月日计算。  
 （2）农历岁次，生肖属相计算。  
 （3）二十四节气计算等  
+（4）农历转公历  
  注意： 仅支持公历1900-2100年的农历转换。    
    
 详细使用可以查看相关测试代码。  
  
-### 6.节假日计算类 Holiday      
+### 6.节假日计算工具类 HolidayUtil      
 包含：  
 （1）公历节假日计算， getLocalHoliday* 比如getLocalHoliday(Date date) 计算date的公历节日，getLocalHoliday(Date date, Map<String, String> localHolidayMap) 可以传入自定义公历节日数据。   
 （2）农历节假日计算， getChineseHoliday* 比如getChineseHoliday(Date date) 计算date的农历节日，getChineseHoliday(Date date, Map<String, String> chineseHolidayMap) 可以传入自定义农历节日数据。  
@@ -231,19 +249,36 @@ cron表达式从左到右（用空格隔开）：秒（0-59） 分（0-59） 小
   
 ### 9.时间自然语言分析工具类（NLP） TimeNLPUtil  
   
+  包括功能：   
+（1）以当前时间为基础分析时间自然语言。  
+（2）以指定时间为基础分析时间自然语言。  
+  
 修改自 https://github.com/shinyke/Time-NLP  
 做了一些修改如下：  
 （1）封装属性，重命名使符合驼峰命名标准。  
 （2）将加载正则资源文件改为单例加载。  
 （3）将类按照功能重新划分为单独的多个类。  
 （4）使用Java8日期API重写。  
-（5）增加注释说明，优化代码。  
+（5）增加注释说明，优化代码。   
+（6）修复原项目中的issue：标准时间yyyy-MM-dd、yyyy-MM-dd HH:mm:ss和yyyy-MM-dd HH:mm解析问题。   
+（7）修复原项目中的issue：1小时后，1个半小时后，1小时50分钟等解析问题；并且支持到秒，比如50秒后，10分钟30秒后等。     
+（8）修复原项目中的issue：修复当前时间是上午10点，那么下午三点 会识别为明天下午三点问题。   
+（9）修复原项目中的issue：修复小数解析异常问题。   
+（10）性能优化，将使用到的正则预编译后放到缓存中，下次直接使用，提高性能。    
     
-  包括功能：   
-（1）以当前时间为基础分析时间自然语言。  
-（2）以指定时间为基础分析时间自然语言。  
-    
+注意：NLP会有一定的识别失败率，在不断迭代开发提高成功率。    
+    Mini版本不包含此功能。  
+  
   详细使用可以查看相关测试代码。     
+    
+### 10.时间单位常量类 XkTimeConstant  
+  
+时间单位常量 ，方便计算单位换算，比如设置缓存时间 3天：  3\*MILLISECONDS_PER_DAY （每天毫秒数 24\*60\*60\*1000）     
+包含：     
+（1）基本单位换算数值，比如 MILLISECONDS_PER_SECONDS 每秒毫秒数 1000。  
+（2）转换为秒数基本数值，比如 SECONDS_PER_DAY 每天秒数 24\*60\*60。  
+（3）转换为毫秒基本数值，比如 MILLISECONDS_PER_DAY 每天毫秒数 24\*60\*60\*1000。  
+  
     
 # 更多详细文档
 - [JavaDoc 文档](https://apidoc.gitee.com/xkzhangsan/xk-time) 
@@ -257,3 +292,10 @@ cron表达式从左到右（用空格隔开）：秒（0-59） 分（0-59） 小
 （1）fork项目。  
 （2）在dev分支修改。  
 （3）提交pull request。 
+  
+  
+  
+# 开发计划  
+### 1.时间自然语言分析工具类（NLP） TimeNLPUtil 支持节假日识别  
+（1）常见节假日，比如元旦、春节、清明节、劳动节、端午节、中秋节等节假日支持。  
+（2）24节气支持。

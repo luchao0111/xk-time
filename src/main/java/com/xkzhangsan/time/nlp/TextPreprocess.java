@@ -1,7 +1,12 @@
 package com.xkzhangsan.time.nlp;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.xkzhangsan.time.enums.RegexEnum;
+import com.xkzhangsan.time.utils.RegexCache;
 
 /**
  * 文本预处理
@@ -13,9 +18,16 @@ public class TextPreprocess {
 	private TextPreprocess(){
 	}
 
+	/**
+	 * 文本预处理
+	 * @param text 待处理文本
+	 * @return 处理后的文本
+	 */
 	public static String preprocess(String text){
-		text = delKeyword(text, "\\s+"); // 清理空白符
-		text = delKeyword(text, "[的]+"); // 清理语气助词
+//		text = delKeyword(text, "\\s+"); // 清理空白符 直接删除空格会影响部分格式识别错误，比如2016-07-19 00:00:00
+		text = text.trim();
+		text = delKeyword(text, RegexEnum.TextPreprocessSeparator.getRule()); // 清理语气助词
+		text = delDecimalStr(text); // 清理非日期小数
 		text = numberTranslator(text);// 大写数字转化
 		return text;
 	}
@@ -29,7 +41,7 @@ public class TextPreprocess {
 	 * @return 清理工作完成后的字符串
 	 */
 	public static String delKeyword(String target, String rules){
-		Pattern p = Pattern.compile(rules); 
+		Pattern p = RegexCache.get(rules); 
 		Matcher m = p.matcher(target); 
 		StringBuffer sb = new StringBuffer(); 
 		boolean result = m.find(); 
@@ -58,7 +70,7 @@ public class TextPreprocess {
 	 * @return 转化完毕后的字符串
 	 */
 	public static String numberTranslator(String target){
-		Pattern p = Pattern.compile("[一二两三四五六七八九123456789]万[一二两三四五六七八九123456789](?!(千|百|十))"); 
+		Pattern p = RegexEnum.TextPreprocessNumberTranslatorOne.getPattern(); 
 		Matcher m = p.matcher(target); 
 		StringBuffer sb = new StringBuffer(); 
 		boolean result = m.find(); 
@@ -75,7 +87,7 @@ public class TextPreprocess {
 		m.appendTail(sb);
 		target = sb.toString();
 		
-		p = Pattern.compile("[一二两三四五六七八九123456789]千[一二两三四五六七八九123456789](?!(百|十))"); 
+		p = RegexEnum.TextPreprocessNumberTranslatorTwo.getPattern(); 
 		m = p.matcher(target); 
 		sb = new StringBuffer(); 
 		result = m.find(); 
@@ -92,7 +104,7 @@ public class TextPreprocess {
 		m.appendTail(sb);
 		target = sb.toString();
 		
-		p = Pattern.compile("[一二两三四五六七八九123456789]百[一二两三四五六七八九123456789](?!十)"); 
+		p = RegexEnum.TextPreprocessNumberTranslatorThree.getPattern(); 
 		m = p.matcher(target); 
 		sb = new StringBuffer(); 
 		result = m.find(); 
@@ -109,7 +121,7 @@ public class TextPreprocess {
 		m.appendTail(sb);
 		target = sb.toString();
 		
-		p = Pattern.compile("[零一二两三四五六七八九]"); 
+		p = RegexEnum.TextPreprocessNumberTranslatorFour.getPattern();
 		m = p.matcher(target); 
 		sb = new StringBuffer(); 
 		result = m.find(); 
@@ -120,9 +132,9 @@ public class TextPreprocess {
 		m.appendTail(sb);
 		target = sb.toString();
 		
-		p = Pattern.compile("(?<=(周|星期))[末天日]"); 
-		m = p.matcher(target); 
-		sb = new StringBuffer(); 
+		p = RegexEnum.TextPreprocessNumberTranslatorFive.getPattern(); 
+		m = p.matcher(target);
+		sb = new StringBuffer();
 		result = m.find(); 
 		while(result) { 
 			m.appendReplacement(sb, Integer.toString(wordToNumber(m.group()))); 
@@ -131,7 +143,7 @@ public class TextPreprocess {
 		m.appendTail(sb);
 		target = sb.toString();
 		
-		p = Pattern.compile("(?<!(周|星期))0?[0-9]?十[0-9]?"); 
+		p = RegexEnum.TextPreprocessNumberTranslatorSix.getPattern();
 		m = p.matcher(target);
 		sb = new StringBuffer();
 		result = m.find();
@@ -165,7 +177,7 @@ public class TextPreprocess {
 		m.appendTail(sb);
 		target = sb.toString();
 		
-		p = Pattern.compile("0?[1-9]百[0-9]?[0-9]?"); 
+		p = RegexEnum.TextPreprocessNumberTranslatorSeven.getPattern(); 
 		m = p.matcher(target);
 		sb = new StringBuffer();
 		result = m.find();
@@ -188,7 +200,7 @@ public class TextPreprocess {
 		m.appendTail(sb);
 		target = sb.toString();
 		
-		p = Pattern.compile("0?[1-9]千[0-9]?[0-9]?[0-9]?"); 
+		p = RegexEnum.TextPreprocessNumberTranslatorEight.getPattern();
 		m = p.matcher(target);
 		sb = new StringBuffer();
 		result = m.find();
@@ -211,7 +223,7 @@ public class TextPreprocess {
 		m.appendTail(sb);
 		target = sb.toString();
 		
-		p = Pattern.compile("[0-9]+万[0-9]?[0-9]?[0-9]?[0-9]?"); 
+		p = RegexEnum.TextPreprocessNumberTranslatorNine.getPattern(); 
 		m = p.matcher(target);
 		sb = new StringBuffer();
 		result = m.find();
@@ -266,4 +278,31 @@ public class TextPreprocess {
 			return 9;
 		else return -1;
 	}
+	
+	/**
+	 * 清理非日期小数 比如4.5等
+	 * @param target
+	 * @return 处理过的字符串
+	 */
+	private static String delDecimalStr(String target){
+		Pattern dateFlagPattern = RegexEnum.TextPreprocessDelDecimalStrSeparator.getPattern();
+		Matcher dateFlagMatcher = dateFlagPattern.matcher(target);
+		Set<Integer> dateFlagSet = new HashSet<>();
+		while(dateFlagMatcher.find()){
+			dateFlagSet.add(dateFlagMatcher.start());
+		}
+		
+		Pattern p = RegexEnum.TextPreprocessDelDecimalStr.getPattern();
+		Matcher m = p.matcher(target);
+		StringBuffer sb = new StringBuffer(); 
+		boolean result = m.find();
+		while(result) {
+			if(!dateFlagSet.contains(m.end())){
+				m.appendReplacement(sb, "");
+			}
+			result = m.find(); 
+		}
+		m.appendTail(sb);
+		return sb.toString();
+	}	
 }
